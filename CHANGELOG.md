@@ -1,5 +1,53 @@
 # Changelog
 
+## [2.2.2] - 2026-10-28
+
+- Initialize the public omega_lock engine synchronously in the official MCP
+  entrypoint after the optional MCP app imports successfully and before
+  stdio/HTTP transport startup. This avoids first native-engine initialization
+  during a tool worker call on the observed NumPy 2.5.4 / MCP 1.30 / Windows
+  cold-start path. The internal cause of that wait remains UNKNOWN.
+- Preserve missing-MCP diagnostics, --help and core-without-MCP behavior. No
+  dependency, provider-call, gate, API, schema or computation-policy changes.
+- Include the 2.2.1 neutral-parameter correction. Existing 2.2.1 tags, release
+  files and golden artifacts are preserved; this is a new patch version.
+
+## [2.2.1] - 2026-10-28
+
+- Fix neutral reasoning and output-budget parameters to use indices into the
+  configured axis lists. Prefer STANDARD/MEDIUM when allowed, otherwise the first
+  allowed value; expose the same neutral through parameter specifications.
+- Correct the 2.2.0 default baseline from unintended DEEP to STANDARD. Valid
+  singleton subsets no longer fail bounds checks, and reordered lists preserve
+  the preferred semantic value. Historical artifacts are not rewritten; fresh
+  runs can have different baseline scores, requests and calibration outcomes.
+- Verify actual offline ProviderRequests and the runtime, CLI and MCP subset
+  calibration paths, retaining manual-review HOLD escalation.
+- Describe `PerformanceMeasurement.noise_floor` as absolute fitness standard
+  deviation, and describe the composite Action as checking declared artifact/gap/
+  hard-gate criteria without asserting generalization.
+
+The direct comparison baseline for this patch is public **2.2.0**, not 2.1.2.
+No gate threshold, artifact schema or existing reference fixture was relaxed.
+See [reproduction and migration](docs/release/2.2.1.md).
+
+## [2.2.0] - 2026-10-28
+
+- Invalidate evaluation caches when public context changes, provide explicit fresh evaluation and cache invalidation, and keep boundary-clamp verdicts distinct.
+- Bound submitted item results to max_workers and stream input-order aggregation. Account attempted calls and returned usage even on failure; never cache incomplete evaluations.
+- Reject nonfinite gate inputs and contradictory disjoint IDs; calibrate reports input errors with exit 2 before provider calls for split overlap.
+- Add explicit PreflightReport measurement_status/probe_accounting. Failed or insufficient measurements require manual review; old reports retain unknown state.
+- Preserve CLI aliases, artifact schema 2.0, and default auto mode. classify_traps gains optional paired/disjoint inputs for mini-antemortem-cli 0.11.0+.
+- Retain advisory-only adaptation controls as advisory. See docs/release/2.2.0.md for measured scope and migration.
+
+## [2.1.2] - 2026-10-08
+
+Bound FastMCP to SDK >=1,<2 to fix clean MCP installs. Pin the Action default to this package version. Add standalone artifact inspection and explicit preflight data handoff; remove unsupported framework comparisons.
+
+Compatibility: no renamed imports, CLI/MCP identifiers, schemas or relaxed gates.
+Upgrade with the same PyPI distribution name; MCP users reinstall its [mcp] extra.
+
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

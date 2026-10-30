@@ -1,6 +1,6 @@
 # omegaprompt
 
-**당신의 prompt를 위한 overfit gate.** prompt가 당신의 eval set에서 만점을 받았다 — 바로 그것이 아직 그 prompt를 믿어선 안 되는 이유입니다. `omegaprompt`는 이긴 prompt를 그 prompt가 한 번도 튜닝하지 않은 예시들로 다시 테스트하고, 그 결과가 유지되지 않으면 **당신의 CI 빌드를 실패**시킵니다.
+**명시적 gate를 갖춘 provider 중립 프롬프트 보정.** train 데이터에서 설정을 선택하고 별도로 제공한 test 데이터에서 gap·hard gate·실행 정책을 검사합니다. paired 재측정은 반복 일관성이며, 독립 holdout은 선택에 사용하지 않은 사례가 필요합니다.
 
 [![CI](https://github.com/hibou04-ops/omegaprompt/actions/workflows/ci.yml/badge.svg)](https://github.com/hibou04-ops/omegaprompt/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/pypi/l/omegaprompt?color=blue&label=license&cacheSeconds=3600)](LICENSE)
@@ -11,6 +11,14 @@
 [![MCP](https://img.shields.io/badge/MCP-server-blueviolet.svg)](https://github.com/hibou04-ops/omegaprompt/blob/main/README.md#103-mcp-server-claude-code-cursor)
 [![Parent framework](https://img.shields.io/badge/framework-omega--lock-blueviolet.svg)](https://github.com/hibou04-ops/omega-lock)
 
+> **2.2.2 (2026-10-28): MCP transport 시작 전 engine 초기화.** 공식 진입점은 선택 MCP app import 성공 뒤 stdio/HTTP dispatch 전에 공개 omega_lock engine을 동기로 초기화합니다. 관측된 Windows cold NumPy import 대기에 대한 실행 순서 완화이며 내부 원인은 UNKNOWN입니다. provider 호출·의존성·gate·schema 정책을 바꾸지 않으며 2.2.1의 중립값 교정을 포함합니다.
+
+> **2.2.1 (2026-10-28): 부분 축의 중립값 교정.** reasoning/budget 중립값은 설정 목록에서 STANDARD/MEDIUM의 위치를 사용하며, 없으면 첫 허용값을 사용합니다. 공개 2.2.0에서 기본 STANDARD가 DEEP으로 해석되거나 유효한 단일값 목록이 실패하던 결함을 교정했습니다. 새 실행의 기준 점수·비용·선택 결과는 달라질 수 있으며 기존 artifact는 보존합니다. [재현과 호환성](docs/release/2.2.1.md).
+
+optimizer의 원시 정수는 설정한 `MetaAxisSpace` 목록의 인덱스입니다. 전역 `REASONING_ORDINALS`/`OUTPUT_BUDGET_ORDINALS` helper 값과 혼동하지 마세요.
+
+> **2.2.0 (2026-10-28): 평가 무결성과 대기 작업 상한.** 데이터·rubric·variants 등 평가 컨텍스트 변경 시 캐시를 무효화합니다. `PromptTarget.evaluate(..., use_cache=False)`는 실제 재측정이며 캐시 재생은 독립 관측으로 세지 않습니다. 병렬 대기 결과는 `max_workers`개 이하이고 입력 순서를 보존합니다. 실패한 target/judge 시도와 반환된 usage도 누적 계측하며 부분 성공은 캐시하지 않습니다. 명시적 disjoint 모드는 ID 중복을 입력 오류로 처리합니다. [검증 근거와 이행 안내](docs/release/2.2.0.md).
+
 문서: **[Easy start](https://github.com/hibou04-ops/omegaprompt/blob/main/EASY_README.md)** · [Full reference](https://github.com/hibou04-ops/omegaprompt/blob/main/README.md) · [한국어](https://github.com/hibou04-ops/omegaprompt/blob/main/README_KR.md) · [쉬운 한국어](https://github.com/hibou04-ops/omegaprompt/blob/main/EASY_README_KR.md) · [Examples gallery](examples/) · [Claim ledger (신뢰 근거)](docs/claims/README_CLAIMS.generated.md)
 
 키워드: **prompt overfitting · prompt regression testing · LLM eval CI · prompt evaluation · prompt A/B test in CI · held-out validation for prompts · CI ship gate for prompts**
@@ -20,7 +28,6 @@ pip install omegaprompt              # core
 pip install "omegaprompt[mcp]"       # + MCP server (Claude Code / Cursor)
 ```
 
-> **v2.1.1 (2026-06-12)** — 메타데이터 전용 릴리스: composite **Action**의 `action.yml` `description`을 GitHub Marketplace의 125자 제한 미만으로 줄여 Marketplace에 게시하고 `uses: hibou04-ops/omegaprompt@v2.1.1`로 사용할 수 있게 했습니다. 라이브러리/API 변경은 없습니다 — v2.1.0에서 추가된 `omegaprompt gate` CI ship-gate 명령, `--format json`/`--format html` 출력, key가 필요 없는 **`ollama`** provider, 기계가 읽을 수 있는 **overfit-metrics** 블록(`extract_overfit_metrics`)은 그대로입니다. MCP 도구 세트는 8개로 고정(`gate` MCP 도구는 없음); artifact schema는 `2.0`을 유지하며 backward compatible합니다. 정확한 deterministic reference metric은 생성된 [claim ledger](docs/claims/README_CLAIMS.generated.md)에서 추적합니다.
 
 <!-- public-claim-ledger:start -->
 > Claim evidence source: [docs/claims/public_claim_ledger.json](docs/claims/public_claim_ledger.json), rendered by `python tools/generate_readme_claims.py`.
@@ -29,6 +36,29 @@ pip install "omegaprompt[mcp]"       # + MCP server (Claude Code / Cursor)
 신뢰 문서: [trust model](docs/trust-model.md) · [toolkit positioning](docs/toolkit-positioning.md) · [provider capabilities](docs/provider-capabilities.md) · [profiles and risk boundaries](docs/profiles-and-risk-boundaries.md) · [release checklist](docs/release/release-checklist.md) · [post-release verification](docs/release/release-checklist.md#post-release-network-verification).
 
 ---
+
+## 시작 · 단독 사용 · 도킹
+
+**Omega Aile** — Quiet precision. AI research guided by evidence.
+
+omega-lock 엔진으로 프롬프트 설정을 보정하고 CalibrationArtifact의 선언된 배포 기준을 검사합니다.
+
+Python 3.11 이상에서 실행합니다. 설치에는 인터넷이 필요합니다.
+
+```bash
+python -m pip install omegaprompt==2.2.2
+omegaprompt --help
+python -c "from urllib.request import urlretrieve; urlretrieve('https://raw.githubusercontent.com/hibou04-ops/omegaprompt/v2.2.2/examples/reference/reference_artifact.json', 'artifact.json')"
+omegaprompt check-artifact artifact.json
+omegaprompt report artifact.json --format json
+```
+
+artifact 다운로드는 인터넷이 필요하며 이후 검사는 오프라인입니다. 저장된 합성 artifact의 누락된 per-item 점수는 transfer 통과를 뜻하지 않습니다. 실제 보정은 provider 설정과 비용 확인이 필요합니다. omega-lock>=0.3.0,<0.4.0은 필수이며 두 mini 도구는 선택입니다.
+
+[실제 연결 방식과 입력·출력](https://github.com/hibou04-ops/omega-lock/blob/main/DOCKING.md) · [전체 안내](README.md). 두 mini 도구의 직전 검증 조합은 omegaprompt 2.2.0이며, 별도 배포 패키지입니다.
+
+MCP는 해당 배포명의 `[mcp]` extras와 기존 서버 명령을 사용합니다. 기존 FastMCP 계약은 SDK `>=1.0.0,<2.0.0` 범위로 유지합니다.
+
 
 ## 당신의 prompt는 eval set에 overfit되어 있다 — 그리고 당신은 그 사실을 모른다
 
@@ -52,24 +82,8 @@ pip install "omegaprompt[mcp]"       # + MCP server (Claude Code / Cursor)
 
 ## 이것은 당신의 eval 위에 얹히는 것이지, 그것을 대체하지 않는다
 
-omegaprompt는 promptfoo, DSPy, deepeval, Braintrust, 또는 당신이 직접 만든 harness와 **경쟁하지 않습니다**. 그 도구들은 최선의 prompt를 *찾고 점수를 매깁니다*. omegaprompt는 그들이 빠뜨린 한 가지를 합니다: 그 최선의 prompt가 튜닝되지 않은 데이터 위에서도 살아남는지 알려주는 **train/held-out split + transfer gate** — 더해서, 다음 PR의 "사소한 표현 수정"이 production을 조용히 무너뜨릴 수 없도록 하는 **ship/block CI 판정**입니다.
+omegaprompt는 프롬프트 보정과 artifact 게이트를 모두 제공합니다. promptfoo·DSPy 등도 자체 평가·검증 기능을 갖추므로 검증 기능이 없다고 단정하지 않습니다. 이 저장소에는 해당 도구의 네이티브 어댑터가 없으며, 사용자가 dataset·prompt variant·내보낸 결과를 Dataset/PromptVariants 또는 RuleJudge 계약으로 변환해야 합니다.
 
-| | promptfoo / DSPy / 당신의 harness | eval을 눈으로만 본다 | **omegaprompt** |
-|---|---|---|---|
-| 테스트 케이스에 prompt 실행 | ✓ | 수동 | 당신 것을 입력으로 재사용 |
-| 최선의 prompt 찾기 / 최적화 | ✓ (그게 그들의 일) | 손으로 | 그건 이 도구의 일이 아님 |
-| Train / held-out split | ✗ (한 세트, 한 번 채점) | ✗ | ✓ 사전 선언; tuner는 held-out을 절대 보지 않음 |
-| Held-out transfer gate (train 점수가 held-out 점수를 예측하는가?) | ✗ | ✗ | ✓ per-item 상관 gate |
-| Train↔held-out 최대 격차 gate | ✗ | ✗ | ✓ 사전 선언된 임계값 |
-| 단일 명령 CI ship/block 판정 | 부분적 | ✗ | ✓ `gate` / `diff`가 non-zero로 종료 |
-| 기계가 읽는 "overfit인가?" 숫자 | ✗ | ✗ | ✓ `extract_overfit_metrics` |
-| ship **전에** overfit을 잡음 | ✗ | ✗ | ✓ 그게 전부의 핵심 |
-
-> **당신의 tech lead을 위한 한 줄:** promptfoo/DSPy는 *어떤* prompt가 가장 높은 점수를 받았는지 알려줍니다. omegaprompt는 *그 prompt가 held-out 데이터 위에서 유지되는지*를 알려주고, CI에 ship할지 block할지를 결정할 단일 exit code를 줍니다.
-
-당신의 기존 eval 출력은 그대로 꽂힙니다 — assertion은 rule-based gate가 되고, 당신의 dataset은 train/held-out 소스가 됩니다. omegaprompt는 **search-first가 아니라 audit-first**입니다: 당신이 이미 후보를 골랐다고 가정하고, search의 하류에 있는 질문에 답합니다 — *당신은 정말로 일반화했는가?*
-
----
 
 ## 30초 데모 — API key 불필요, network 불필요
 
@@ -150,7 +164,7 @@ prompt 변경은 코드 변경입니다. 코드처럼 gate하세요. 전용 **`o
 
 ```yaml
 # .github/workflows/prompt-audit.yml
-- uses: hibou04-ops/omegaprompt@v2.1.1
+- uses: hibou04-ops/omegaprompt@v2.2.2
   with:
     artifact: artifact.json          # a CalibrationArtifact you produced in a prior step
     format: json                     # machine-readable gate summary
@@ -561,7 +575,7 @@ unlock된 부분공간의 모든 조합이 평가됩니다. 각 평가는 datase
 
 ### 5.5 held-out replay
 
-training-best parameter가 held-out 테스트 슬라이스에서 replay됩니다. replay는 *같은* `PromptTarget` adapter를 다른 dataset과 함께 씁니다; 테스트 슬라이스는 searcher가 결코 보지 않았으므로 leakage가 가능하지 않습니다.
+선택한 parameter를 별도 PromptTarget 인스턴스와 제공된 test 데이터에서 평가합니다. 독립성은 실제 입력 내용과 과거 선택 이력에 달려 있습니다. paired 재측정은 동일 사례를 다시 사용하므로 독립 holdout이 아닙니다.
 
 ### 5.6 held-out transfer gate (per-item 상관)
 
@@ -569,7 +583,7 @@ train per-item 점수와 test per-item 점수 사이의(공유 dataset id 위에
 
 **validation_mode별 transfer-gate 의미(v1.5+).** transfer gate는 per-item 상관이므로, train과 test 슬라이스가 *같은* item id를 공유할 때 — "paired replay" — 에만 의미가 있습니다. 보통의 disjoint train/test split에서는 슬라이스에 공유 id가 없어 per-item 상관이 구조적으로 측정 불가능합니다; gate는 gap-only 검사로 축소됩니다. 이를 명시하기 위해 `CalibrateTuning.validation_mode`는 다음을 받습니다:
 
-- `"auto"`(기본값, backward-compat): 슬라이스가 ≥3개 id를 공유할 때만 per-item 상관을 계산하고; 그렇지 않으면 조용히 건너뜁니다.
+- `"auto"`(기본값, backward-compat): 슬라이스가 ≥3개 id를 공유할 때만 per-item 상관을 계산하고; 그렇지 않으면 미측정 사유를 기록합니다.
 - `"paired"`: 호출자가 설계상 공유 id를 단언합니다. overlap이 3 미만이면 `ValueError`를 던집니다 — overlap 없는 paired 실행은 무료 통과가 아니라 setup 버그입니다.
 - `"disjoint"`: 호출자가 설계상 공유 id 없음을 단언합니다. per-item 상관은 결코 계산되지 않고; gate는 gap-only입니다.
 
@@ -1665,3 +1679,5 @@ Apache 2.0. [LICENSE](LICENSE)를 참고하세요.
 ## Colophon
 
 혼자 설계하고, 구현하고, ship했습니다. `omega-lock` 위의 adapter 계층; calibration-engine 재구현 0. 모든 non-trivial한 변경은 `antemortem-cli`의 recon 원칙을 통해 사전 작성됩니다. 테스트는 offline으로 돌고; CI에 라이브 API 호출이 없습니다.
+
+2.2.0 runtime split contract: explicit paired mode requires matching ID sets and identical input/reference content on at least three cases; explicit disjoint mode rejects overlapping IDs or exact duplicate input content before provider calls. Historical auto mode is retained and does not establish independence.
